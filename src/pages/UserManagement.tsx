@@ -144,7 +144,9 @@ export function UserManagement() {
   if (loading) {
     return (
       <AuthLayout>
-        <div className="text-black dark:text-slate-200">Loading...</div>
+        <div className="text-black dark:text-slate-200 w-full text-center">
+          Loading...
+        </div>
       </AuthLayout>
     );
   }

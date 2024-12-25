@@ -6,7 +6,7 @@ import { useFavicon } from "@/hooks/useFavicon";
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
 
-  useFavicon("CX", theme === "light" ? "dark" : "light");
+  useFavicon("CX");
   return (
     <Button
       variant="ghost"

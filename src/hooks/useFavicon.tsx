@@ -73,10 +73,9 @@ function generateFavicon(
   return canvas.toDataURL();
 }
 
-export function useFavicon(text: string, theme: any) {
+export function useFavicon(text: string) {
   useEffect(() => {
-    const { background, foreground } = getThemeColors(theme);
-    const faviconUrl = generateFavicon(text, background, foreground);
+    const faviconUrl = generateFavicon(text, "#fff", "#000");
 
     let link = document.querySelector<HTMLLinkElement>("link[rel*='icon']");
 
@@ -88,5 +87,5 @@ export function useFavicon(text: string, theme: any) {
     link.type = "image/x-icon";
     link.rel = "shortcut icon";
     link.href = faviconUrl;
-  }, [text, theme]);
+  }, [text]);
 }

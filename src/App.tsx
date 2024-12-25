@@ -10,16 +10,17 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Dashboard } from "./pages/Dashboard";
 import { UserManagement } from "./pages/UserManagement";
 import { LoginPage } from "./pages/LoginPage";
-import { Toaster } from "sonner";
+import { Toaster } from "./components/ui/sonner";
 
 function App() {
   return (
-    <ThemeProvider>
-      <Router>
+    <Router>
+      <ThemeProvider>
         <AuthProvider>
-          <Toaster richColors position="bottom-right" />
+          <Toaster richColors position="top-right" />
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+
             <Route
               path="/dashboard"
               element={
@@ -36,11 +37,13 @@ function App() {
                 </ProtectedRoute>
               }
             />
+
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </AuthProvider>
-      </Router>
-    </ThemeProvider>
+      </ThemeProvider>
+    </Router>
   );
 }
 
