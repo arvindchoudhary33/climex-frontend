@@ -13,7 +13,7 @@ export function Dashboard() {
           Climate Risk Dashboard
         </h1>
         <div className="rounded-lg bg-white dark:bg-black p-4 md:p-8 shadow">
-          <Tabs defaultValue="documents" className="space-y-4">
+          <Tabs defaultValue="economic" className="space-y-4">
             <TabsList>
               <TabsTrigger value="economic">
                 Climate-Economic Impact Analysis
