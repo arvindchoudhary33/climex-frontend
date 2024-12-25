@@ -144,7 +144,7 @@ export function UserManagement() {
   if (loading) {
     return (
       <AuthLayout>
-        <div>Loading...</div>
+        <div className="text-black dark:text-slate-200">Loading...</div>
       </AuthLayout>
     );
   }
@@ -153,7 +153,9 @@ export function UserManagement() {
     <AuthLayout>
       <div className="space-y-4">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-slate-900">User Management</h1>
+          <h1 className="text-2xl font-bold text-black dark:text-white">
+            User Management
+          </h1>
           <Button onClick={() => setIsCreateDialogOpen(true)}>
             <UserPlus className="h-4 w-4 mr-2" />
             Add User
@@ -166,12 +168,14 @@ export function UserManagement() {
           </Alert>
         )}
 
-        <UserTable
-          users={users}
-          onDeleteUser={handleDeleteUser}
-          onEditUser={handleEditUser}
-          onChangePassword={handlePasswordChange}
-        />
+        <div className="rounded-lg bg-white dark:bg-black p-4 shadow">
+          <UserTable
+            users={users}
+            onDeleteUser={handleDeleteUser}
+            onEditUser={handleEditUser}
+            onChangePassword={handlePasswordChange}
+          />
+        </div>
 
         <CreateUserDialog
           isOpen={isCreateDialogOpen}

@@ -9,30 +9,26 @@ export function Dashboard() {
   return (
     <AuthLayout>
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-slate-900">
+        <h1 className="text-2xl font-bold text-black dark:text-white">
           Climate Risk Dashboard
         </h1>
-        <div className="rounded-lg bg-white p-4 md:p-8 shadow">
+        <div className="rounded-lg bg-white dark:bg-black p-4 md:p-8 shadow">
           <Tabs defaultValue="documents" className="space-y-4">
             <TabsList>
               <TabsTrigger value="documents">Document Analysis</TabsTrigger>
               <TabsTrigger value="temperature">
                 Temperature Analysis
               </TabsTrigger>
-
               <TabsTrigger value="economic">
-                Climate-Economic Impact Analysis Analysis
+                Climate-Economic Impact Analysis
               </TabsTrigger>
             </TabsList>
-
             <TabsContent value="documents">
               <DocumentAnalysis />
             </TabsContent>
-
             <TabsContent value="temperature">
               <TemperatureAnalysis />
             </TabsContent>
-
             <TabsContent value="economic">
               <ClimateEconomicImpact />
             </TabsContent>
