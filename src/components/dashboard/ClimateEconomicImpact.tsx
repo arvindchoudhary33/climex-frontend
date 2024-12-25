@@ -9,6 +9,12 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Line,
   BarChart,
   Bar,
@@ -25,16 +31,8 @@ import { AlertCircle } from "lucide-react";
 import { api } from "@/utils/api";
 import { useAuth } from "@/contexts/AuthContext";
 
-const REGIONS = [
-  { id: "WLD", name: "World" },
-  { id: "EAP", name: "East Asia & Pacific" },
-  { id: "ECA", name: "Europe & Central Asia" },
-  { id: "LAC", name: "Latin America & Caribbean" },
-  { id: "MNA", name: "Middle East & North Africa" },
-  { id: "NAR", name: "North America" },
-  { id: "SAS", name: "South Asia" },
-  { id: "AFR", name: "Sub-Saharan Africa" },
-];
+const REGIONS = [{ id: "WLD", name: "All" }];
+
 const TIME_PERIODS = [
   { id: "1", name: "Last Year" },
   { id: "3", name: "Last 3 Years" },
@@ -43,71 +41,33 @@ const TIME_PERIODS = [
 
 export function ClimateEconomicImpact() {
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [climateEconData, setClimateEconData] = useState<any[]>([]);
+  const [error, setError] = useState(null);
+  const [climateEconData, setClimateEconData] = useState([]);
+  const [processedData, setProcessedData] = useState({
+    yearlyData: [],
+    drilldownInfo: {},
+  });
   const [selectedRegion, setSelectedRegion] = useState(REGIONS[0].id);
-  const [selectedPeriod, setSelectedPeriod] = useState(TIME_PERIODS[1].id);
+  const [selectedPeriod, setSelectedPeriod] = useState(TIME_PERIODS[2].id);
+  const [drilldownData, setDrilldownData] = useState(null);
+  const [showDrilldown, setShowDrilldown] = useState(false);
   const { token } = useAuth();
-  const fetchClimateEconomicData = async () => {
-    if (!token) return;
 
-    try {
-      setLoading(true);
-      setError(null);
-
-      const endYear = new Date().getFullYear();
-      const startYear = endYear - parseInt(selectedPeriod);
-
-      const response = await fetch(
-        `${import.meta.env.VITE_BACKEND_URL}/api/v1/climate/documents?` +
-          `topic=climate change&` +
-          `admreg_exact=${selectedRegion}&` +
-          `startYear=${startYear}&` +
-          `endYear=${endYear}`,
-        {
-          headers: {
-            ...api.setAuthHeader(token),
-          },
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch climate-economic data");
-      }
-
-      const data = await response.json();
-      console.log("Raw API response:", data); // Debug log
-
-      const processedData = processDocuments(data);
-      setClimateEconData(processedData);
-    } catch (err) {
-      console.error("Error fetching climate-economic data:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to fetch climate-economic data",
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-  const processDocuments = (data: any) => {
+  const processDocuments = (data) => {
     let documents = [];
     if (data.documents) {
       documents =
         typeof data.documents === "object"
           ? Object.values(data.documents)
           : data.documents;
-    } else if (Array.isArray(data)) {
-      documents = data;
     }
 
-    const yearlyData: any = {};
+    const yearlyData = {};
+    const drilldownInfo = {};
 
-    documents.forEach((doc: any) => {
+    documents.forEach((doc) => {
       const docDate = doc.docdt ? new Date(doc.docdt) : null;
       if (!docDate || isNaN(docDate.getTime())) {
-        console.log("Invalid date for document:", doc); // Debug log
         return;
       }
 
@@ -120,9 +80,21 @@ export function ClimateEconomicImpact() {
           economicMentions: 0,
           mitigationMentions: 0,
         };
+
+        drilldownInfo[year] = {
+          documents: [],
+          topTopics: new Map(),
+          riskTypes: new Map(),
+        };
       }
 
       yearlyData[year].documentCount++;
+      drilldownInfo[year].documents.push({
+        title: doc.display_title,
+        topics: doc.teratopic?.split(",") || [],
+        date: docDate.toLocaleDateString(),
+        docType: doc.docty,
+      });
 
       const allText = [
         doc.display_title,
@@ -136,6 +108,10 @@ export function ClimateEconomicImpact() {
 
       if (allText.includes("risk")) {
         yearlyData[year].riskMentions++;
+        doc.subtopic?.split(",").forEach((topic) => {
+          const count = drilldownInfo[year].riskTypes.get(topic) || 0;
+          drilldownInfo[year].riskTypes.set(topic, count + 1);
+        });
       }
       if (
         allText.includes("economic") ||
@@ -147,18 +123,154 @@ export function ClimateEconomicImpact() {
       if (allText.includes("mitigation") || allText.includes("adaptation")) {
         yearlyData[year].mitigationMentions++;
       }
+
+      doc.teratopic?.split(",").forEach((topic) => {
+        const trimmedTopic = topic.trim();
+        const count = drilldownInfo[year].topTopics.get(trimmedTopic) || 0;
+        drilldownInfo[year].topTopics.set(trimmedTopic, count + 1);
+      });
     });
 
-    const processedData = Object.values(yearlyData)
-      .sort((a: any, b: any) => a.year - b.year)
-      .filter((item: any) => item.documentCount > 0);
+    return {
+      yearlyData: Object.values(yearlyData).sort((a, b) => a.year - b.year),
+      drilldownInfo,
+    };
+  };
 
-    console.log("Final processed data:", processedData); // Debug log
-    return processedData;
+  const handleDataPointClick = (data) => {
+    if (data && data.year) {
+      const yearData = processedData.drilldownInfo[data.year];
+      if (yearData) {
+        setDrilldownData({
+          year: data.year,
+          topTopics: Array.from(yearData.topTopics.entries())
+            .map(([topic, count]) => ({ topic, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 5),
+          riskTypes: Array.from(yearData.riskTypes.entries())
+            .map(([type, count]) => ({ type, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 5),
+          documents: yearData.documents,
+        });
+        setShowDrilldown(true);
+      }
+    }
+  };
+
+  const DrilldownContent = ({ data }) => {
+    if (!data) return null;
+
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Topics Distribution ({data.year})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.topTopics}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="topic"
+                    angle={-45}
+                    textAnchor="end"
+                    height={100}
+                    interval={0}
+                  />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar
+                    dataKey="count"
+                    name="Number of Documents"
+                    fill="hsl(var(--chart-2))"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Risk Categories ({data.year})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.riskTypes}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="type"
+                    angle={-45}
+                    textAnchor="end"
+                    height={100}
+                    interval={0}
+                  />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar
+                    dataKey="count"
+                    name="Number of Mentions"
+                    fill="hsl(var(--chart-3))"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   };
 
   useEffect(() => {
-    fetchClimateEconomicData();
+    const fetchData = async () => {
+      if (!token) return;
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        const endYear = new Date().getFullYear();
+        const startYear = endYear - parseInt(selectedPeriod);
+
+        const response = await fetch(
+          `${import.meta.env.VITE_BACKEND_URL}/api/v1/climate/documents?` +
+            `topic=climate change&` +
+            `admreg_exact=${selectedRegion}&` +
+            `startYear=${startYear}&` +
+            `endYear=${endYear}`,
+          {
+            headers: {
+              ...api.setAuthHeader(token),
+            },
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch climate-economic data");
+        }
+
+        const data = await response.json();
+        const processed = processDocuments(data);
+        setClimateEconData(processed.yearlyData);
+        setProcessedData(processed);
+      } catch (err) {
+        console.error("Error fetching climate-economic data:", err);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to fetch climate-economic data",
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, [token, selectedRegion, selectedPeriod]);
 
   return (
@@ -206,6 +318,7 @@ export function ClimateEconomicImpact() {
         <>
           {climateEconData.length > 0 ? (
             <div className="space-y-6">
+              {/* Stats Cards */}
               <div className="grid gap-4 md:grid-cols-3">
                 <Card>
                   <CardHeader>
@@ -269,7 +382,14 @@ export function ClimateEconomicImpact() {
                 <CardContent>
                   <div className="h-[400px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={climateEconData}>
+                      <ComposedChart
+                        data={climateEconData}
+                        onClick={(data) => {
+                          if (data && data.activePayload) {
+                            handleDataPointClick(data.activePayload[0].payload);
+                          }
+                        }}
+                      >
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="year" />
                         <YAxis />
@@ -279,6 +399,7 @@ export function ClimateEconomicImpact() {
                           dataKey="riskMentions"
                           name="Climate Risks"
                           fill="hsl(var(--chart-1))"
+                          cursor="pointer"
                         />
                         <Line
                           type="monotone"
@@ -307,7 +428,14 @@ export function ClimateEconomicImpact() {
                 <CardContent>
                   <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={climateEconData}>
+                      <BarChart
+                        data={climateEconData}
+                        onClick={(data) => {
+                          if (data && data.activePayload) {
+                            handleDataPointClick(data.activePayload[0].payload);
+                          }
+                        }}
+                      >
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="year" />
                         <YAxis />
@@ -317,6 +445,7 @@ export function ClimateEconomicImpact() {
                           dataKey="documentCount"
                           name="Total Documents"
                           fill="hsl(var(--chart-4))"
+                          cursor="pointer"
                         />
                       </BarChart>
                     </ResponsiveContainer>
@@ -335,6 +464,17 @@ export function ClimateEconomicImpact() {
           )}
         </>
       )}
+
+      <Dialog open={showDrilldown} onOpenChange={setShowDrilldown}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Detailed Analysis for {drilldownData?.year}
+            </DialogTitle>
+          </DialogHeader>
+          <DrilldownContent data={drilldownData} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

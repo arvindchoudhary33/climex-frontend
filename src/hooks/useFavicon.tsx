@@ -63,7 +63,6 @@ function generateFavicon(
   if (ctx) {
     ctx.fillStyle = backgroundColor;
     ctx.fillRect(0, 0, 32, 32);
-    // Set text
     ctx.fillStyle = textColor;
     ctx.font = "bold 20px Arial";
     ctx.textAlign = "center";

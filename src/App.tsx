@@ -17,7 +17,7 @@ function App() {
     <Router>
       <ThemeProvider>
         <AuthProvider>
-          <Toaster richColors position="top-right" />
+          <Toaster richColors position="bottom-right" />
           <Routes>
             <Route path="/login" element={<LoginPage />} />
 

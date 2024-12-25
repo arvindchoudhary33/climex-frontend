@@ -15,12 +15,12 @@ export function Dashboard() {
         <div className="rounded-lg bg-white dark:bg-black p-4 md:p-8 shadow">
           <Tabs defaultValue="documents" className="space-y-4">
             <TabsList>
+              <TabsTrigger value="economic">
+                Climate-Economic Impact Analysis
+              </TabsTrigger>
               <TabsTrigger value="documents">Document Analysis</TabsTrigger>
               <TabsTrigger value="temperature">
                 Temperature Analysis
-              </TabsTrigger>
-              <TabsTrigger value="economic">
-                Climate-Economic Impact Analysis
               </TabsTrigger>
             </TabsList>
             <TabsContent value="documents">
