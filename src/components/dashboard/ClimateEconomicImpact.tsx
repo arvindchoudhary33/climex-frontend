@@ -59,7 +59,7 @@ export function ClimateEconomicImpact() {
       const startYear = endYear - parseInt(selectedPeriod);
 
       const response = await fetch(
-        `http://localhost:8000/api/v1/climate/documents?` +
+        `${import.meta.env.VITE_BACKEND_URL}/api/v1/climate/documents?` +
           `topic=climate change&` +
           `admreg_exact=${selectedRegion}&` +
           `startYear=${startYear}&` +

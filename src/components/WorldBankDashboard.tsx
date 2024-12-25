@@ -48,7 +48,7 @@ export function DocumentAnalysis() {
         setLoading(true);
 
         const response = await fetch(
-          "http://localhost:8000/api/v1/climate/documents",
+          `${import.meta.env.VITE_BACKEND_URL}/api/v1/climate/documents`,
           {
             headers: {
               ...api.setAuthHeader(token),

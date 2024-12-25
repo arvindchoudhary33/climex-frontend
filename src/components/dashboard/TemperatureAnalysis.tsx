@@ -114,7 +114,7 @@ export function TemperatureAnalysis() {
       const formattedStartDate = startDate.toISOString().split("T")[0];
 
       const url =
-        `http://localhost:8000/api/v1/climate/temperature?` +
+        `${import.meta.env.VITE_BACKEND_URL}/api/v1/climate/temperature?` +
         `locationId=${selectedCity}&` +
         `datatypeid=${selectedType}&` +
         `startdate=${formattedStartDate}&` +
