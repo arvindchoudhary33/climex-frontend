@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
   SelectContent,
@@ -7,33 +8,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import {
   LineChart,
   Line,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
-  ComposedChart,
-  Area,
+  ScatterChart,
+  Scatter,
+  Label,
 } from "recharts";
-import { AlertCircle, RefreshCw } from "lucide-react";
-import { api } from "@/utils/api";
+import { AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 2000;
-
-const TEMPERATURE_TYPES = [
-  { id: "TMAX", name: "Maximum Temperature" },
-  { id: "TMIN", name: "Minimum Temperature" },
-];
+import { api } from "@/utils/api";
 
 const CITIES = [
   { id: "CITY:US370001", name: "New York, US" },
@@ -41,152 +31,200 @@ const CITIES = [
   { id: "CITY:US170001", name: "Chicago, US" },
 ];
 
-const TIME_RANGES = [
-  { id: "7", name: "Last 7 Days" },
-  { id: "30", name: "Last 30 Days" },
-  { id: "90", name: "Last 90 Days" },
+const TIME_PERIODS = [
+  { id: "90", name: "Last 3 Months" },
+  { id: "180", name: "Last 6 Months" },
+  { id: "365", name: "Last Year" },
 ];
 
-interface TemperatureDataPoint {
-  date: string;
-  rawDate: Date;
-  value: number;
-  unit: string;
-}
-
-export function TemperatureAnalysis() {
+export function ClimateEconomicAnalysis() {
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [temperatureData, setTemperatureData] = useState<
-    TemperatureDataPoint[]
-  >([]);
+  const [error, setError] = useState(null);
+  const [combinedData, setCombinedData] = useState([]);
   const [selectedCity, setSelectedCity] = useState(CITIES[0].id);
-  const [selectedType, setSelectedType] = useState(TEMPERATURE_TYPES[0].id);
-  const [selectedRange, setSelectedRange] = useState(TIME_RANGES[2].id);
+  const [selectedPeriod, setSelectedPeriod] = useState(TIME_PERIODS[1].id);
   const { token } = useAuth();
 
-  const fetchWithRetry = async (
-    url: string,
-    headers: any,
-    retryCount = 0,
-  ): Promise<any> => {
-    try {
-      const response = await fetch(url, { headers });
+  const processDocuments = (documents = {}) => {
+    return Object.values(documents).map((doc) => {
+      const keywords = [
+        "economic growth",
+        "gdp",
+        "economy",
+        "financial",
+        "market",
+        "investment",
+        "development",
+      ];
 
-      if (response.status === 503) {
-        if (retryCount < MAX_RETRIES) {
-          console.log(`Retry attempt ${retryCount + 1} of ${MAX_RETRIES}`);
-          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-          return fetchWithRetry(url, headers, retryCount + 1);
-        }
-        throw new Error(
-          "Service is temporarily unavailable. Please try again later.",
-        );
-      }
+      const text = [doc.display_title, doc.teratopic, doc.subtopic]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
 
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
-      }
+      const economicScore =
+        (keywords.reduce((score, keyword) => {
+          return score + (text.includes(keyword) ? 1 : 0);
+        }, 0) /
+          keywords.length) *
+        100;
 
-      const data = await response.json();
-      return data;
-    } catch (err) {
-      if (retryCount < MAX_RETRIES) {
-        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-        return fetchWithRetry(url, headers, retryCount + 1);
-      }
-      throw err;
-    }
-  };
-
-  const fetchData = async () => {
-    if (!token) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(endDate.getDate() - parseInt(selectedRange));
-
-      const formattedEndDate = endDate.toISOString().split("T")[0];
-      const formattedStartDate = startDate.toISOString().split("T")[0];
-
-      const url =
-        `${import.meta.env.VITE_BACKEND_URL}/api/v1/climate/temperature?` +
-        `locationId=${selectedCity}&` +
-        `datatypeid=${selectedType}&` +
-        `startdate=${formattedStartDate}&` +
-        `enddate=${formattedEndDate}&` +
-        `units=metric`;
-
-      console.log("Fetching temperature data:", url);
-
-      const data = await fetchWithRetry(url, {
-        ...api.setAuthHeader(token),
-      });
-
-      if (!data?.results?.length) {
-        setTemperatureData([]);
-        return;
-      }
-
-      const processedData = data.results
-        .map((item: any) => ({
-          date: new Date(item.date).toLocaleDateString(),
-          rawDate: new Date(item.date),
-          value: parseFloat(item.value),
-          unit: item.unit || "°C",
-        }))
-        .sort((a: any, b: any) => a.rawDate - b.rawDate);
-
-      setTemperatureData(processedData);
-    } catch (err) {
-      console.error("Error fetching temperature data:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch temperature data",
-      );
-      setTemperatureData([]);
-    } finally {
-      setLoading(false);
-    }
+      return {
+        date: new Date(doc.docdt),
+        economicScore,
+        topics: doc.teratopic?.split(",") || [],
+      };
+    });
   };
 
   useEffect(() => {
-    fetchData();
-  }, [token, selectedCity, selectedType, selectedRange]);
+    const fetchData = async () => {
+      if (!token) return;
 
-  const stats = temperatureData.length
-    ? {
-        average:
-          temperatureData.reduce((sum, item) => sum + item.value, 0) /
-          temperatureData.length,
-        max: Math.max(...temperatureData.map((item) => item.value)),
-        min: Math.min(...temperatureData.map((item) => item.value)),
+      try {
+        setLoading(true);
+        setError(null);
+
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(endDate.getDate() - parseInt(selectedPeriod));
+
+        const formattedStartDate = startDate.toISOString().split("T")[0];
+        const formattedEndDate = endDate.toISOString().split("T")[0];
+
+        const tempResponse = await fetch(
+          `${import.meta.env.VITE_BACKEND_URL}/api/v1/climate/temperature?` +
+            `locationId=${selectedCity}&` +
+            `startdate=${formattedStartDate}&` +
+            `enddate=${formattedEndDate}&` +
+            `datatypeid=TMAX`,
+          {
+            headers: { ...api.setAuthHeader(token) },
+          },
+        );
+
+        const docResponse = await fetch(
+          `${import.meta.env.VITE_BACKEND_URL}/api/v1/climate/documents?` +
+            `topic=climate change AND economic&` +
+            `startYear=${startDate.getFullYear()}&` +
+            `endYear=${endDate.getFullYear()}`,
+          {
+            headers: { ...api.setAuthHeader(token) },
+          },
+        );
+
+        if (!tempResponse.ok || !docResponse.ok) {
+          const errorResponse = !tempResponse.ok
+            ? await tempResponse.json()
+            : await docResponse.json();
+
+          throw new Error(
+            errorResponse?.developerMessage ||
+              errorResponse?.userMessage ||
+              "Failed to fetch data",
+          );
+        }
+
+        const [tempData, docData] = await Promise.all([
+          tempResponse.json(),
+          docResponse.json(),
+        ]);
+
+        if (!tempData.results?.length) {
+          throw new Error(
+            "No temperature data available for the selected criteria",
+          );
+        }
+
+        if (!docData.documents || Object.keys(docData.documents).length === 0) {
+          throw new Error(
+            "No economic data available for the selected criteria",
+          );
+        }
+
+        const economicData = processDocuments(docData.documents);
+
+        const combined = tempData.results
+          .map((temp) => {
+            const tempDate = new Date(temp.date);
+            const monthEconomicData = economicData.filter(
+              (eco) =>
+                eco.date.getMonth() === tempDate.getMonth() &&
+                eco.date.getFullYear() === tempDate.getFullYear(),
+            );
+
+            const avgEconomicScore = monthEconomicData.length
+              ? monthEconomicData.reduce(
+                  (sum, eco) => sum + eco.economicScore,
+                  0,
+                ) / monthEconomicData.length
+              : null;
+
+            return {
+              date: temp.date,
+              temperature: parseFloat(temp.value),
+              economicScore: avgEconomicScore,
+              month: tempDate.toLocaleString("default", { month: "short" }),
+              year: tempDate.getFullYear(),
+              unit: "°C",
+            };
+          })
+          .filter((d) => d.economicScore !== null)
+          .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        if (!combined.length) {
+          throw new Error("No matching data points found for analysis");
+        }
+
+        setCombinedData(combined);
+        setError(null);
+      } catch (err) {
+        console.error("Error fetching data:", err);
+        setError(
+          err instanceof Error ? err.message : "An unexpected error occurred",
+        );
+        setCombinedData([]);
+      } finally {
+        setLoading(false);
       }
-    : { average: 0, max: 0, min: 0 };
+    };
 
-  const weeklyData = temperatureData.reduce((acc: any[], item) => {
-    const weekNum = Math.floor(
-      item.rawDate.getTime() / (7 * 24 * 60 * 60 * 1000),
+    fetchData();
+  }, [token, selectedCity, selectedPeriod]);
+
+  const correlation =
+    combinedData.length >= 2 ? calculateCorrelation(combinedData) : 0;
+
+  function calculateCorrelation(data) {
+    const temps = data.map((d) => d.temperature);
+    const scores = data.map((d) => d.economicScore);
+
+    const tempMean = temps.reduce((a, b) => a + b) / temps.length;
+    const scoreMean = scores.reduce((a, b) => a + b) / scores.length;
+
+    const numerator = temps.reduce(
+      (sum, temp, i) => sum + (temp - tempMean) * (scores[i] - scoreMean),
+      0,
     );
-    const existingWeek = acc.find((w) => w.weekNum === weekNum);
-    if (existingWeek) {
-      existingWeek.values.push(item.value);
-      existingWeek.avgValue =
-        existingWeek.values.reduce((sum: number, v: number) => sum + v, 0) /
-        existingWeek.values.length;
-    } else {
-      acc.push({
-        weekNum,
-        weekStart: item.date,
-        values: [item.value],
-        avgValue: item.value,
-      });
-    }
-    return acc;
-  }, []);
+
+    const tempStdDev = Math.sqrt(
+      temps.reduce((sum, temp) => sum + Math.pow(temp - tempMean, 2), 0),
+    );
+
+    const scoreStdDev = Math.sqrt(
+      scores.reduce((sum, score) => sum + Math.pow(score - scoreMean, 2), 0),
+    );
+
+    return numerator / (tempStdDev * scoreStdDev);
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -204,117 +242,107 @@ export function TemperatureAnalysis() {
           </SelectContent>
         </Select>
 
-        <Select value={selectedType} onValueChange={setSelectedType}>
+        <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
           <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Select measurement" />
+            <SelectValue placeholder="Select time period" />
           </SelectTrigger>
           <SelectContent>
-            {TEMPERATURE_TYPES.map((type) => (
-              <SelectItem key={type.id} value={type.id}>
-                {type.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={selectedRange} onValueChange={setSelectedRange}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Select time range" />
-          </SelectTrigger>
-          <SelectContent>
-            {TIME_RANGES.map((range) => (
-              <SelectItem key={range.id} value={range.id}>
-                {range.name}
+            {TIME_PERIODS.map((period) => (
+              <SelectItem key={period.id} value={period.id}>
+                {period.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
-      {error && (
-        <div className="space-y-4">
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-          <Button onClick={fetchData} className="w-full">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Retry
-          </Button>
-        </div>
-      )}
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Average Temperature</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats.average.toFixed(1)}°C
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Maximum Temperature</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.max.toFixed(1)}°C</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Minimum Temperature</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.min.toFixed(1)}°C</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {loading && (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-        </div>
-      )}
-
-      {!loading && temperatureData.length > 0 && (
+      {error ? (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : (
         <>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Temperature-Economic Correlation</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold mb-4">
+                  {(correlation * 100).toFixed(1)}%
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Correlation between temperature changes and economic
+                  indicators
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Economic Documents Analysis</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold mb-4">
+                  {combinedData.length}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Number of climate-economic documents analyzed
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           <Card>
             <CardHeader>
-              <CardTitle>Daily Temperature Trend</CardTitle>
+              <CardTitle>
+                Temperature and Economic Indicators Over Time
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-[300px]">
+              <div className="h-[400px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={temperatureData}>
+                  <LineChart data={combinedData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis
                       dataKey="date"
                       angle={-45}
                       textAnchor="end"
                       height={80}
-                      interval={Math.ceil(temperatureData.length / 15)}
+                      interval={Math.ceil(combinedData.length / 15)}
                     />
-                    <YAxis
-                      label={{
-                        value: "Temperature (°C)",
-                        angle: -90,
-                        position: "insideLeft",
-                      }}
-                    />
+                    <YAxis yAxisId="temp">
+                      <Label
+                        value="Temperature (°C)"
+                        angle={-90}
+                        position="insideLeft"
+                        style={{ textAnchor: "middle" }}
+                      />
+                    </YAxis>
+                    <YAxis yAxisId="eco" orientation="right">
+                      <Label
+                        value="Economic Impact Score"
+                        angle={90}
+                        position="insideRight"
+                        style={{ textAnchor: "middle" }}
+                      />
+                    </YAxis>
                     <Tooltip />
                     <Legend />
                     <Line
+                      yAxisId="temp"
                       type="monotone"
-                      dataKey="value"
-                      name="Temperature"
+                      dataKey="temperature"
                       stroke="hsl(var(--chart-1))"
-                      strokeWidth={2}
-                      dot={false}
+                      name="Temperature"
+                    />
+                    <Line
+                      yAxisId="eco"
+                      type="monotone"
+                      dataKey="economicScore"
+                      stroke="hsl(var(--chart-2))"
+                      name="Economic Impact Score"
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -324,95 +352,74 @@ export function TemperatureAnalysis() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Temperature Range Analysis</CardTitle>
+              <CardTitle>Temperature vs Economic Impact Correlation</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-[300px]">
+              <div className="h-[400px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={temperatureData}>
-                    <CartesianGrid strokeDasharray="3 3" />
+                  <ScatterChart>
+                    <CartesianGrid />
                     <XAxis
-                      dataKey="date"
-                      angle={-45}
-                      textAnchor="end"
-                      height={80}
-                      interval={Math.ceil(temperatureData.length / 15)}
+                      dataKey="temperature"
+                      name="Temperature"
+                      label={{ value: "Temperature (°C)", position: "bottom" }}
                     />
                     <YAxis
+                      dataKey="economicScore"
+                      name="Economic Impact Score"
                       label={{
-                        value: "Temperature (°C)",
+                        value: "Economic Impact Score",
                         angle: -90,
                         position: "insideLeft",
                       }}
                     />
-                    <Tooltip />
-                    <Legend />
-                    <Area
-                      type="monotone"
-                      dataKey="value"
-                      fill="hsl(var(--chart-2) / 0.2)"
-                      stroke="hsl(var(--chart-2))"
-                      name="Temperature Range"
+                    <Tooltip cursor={{ strokeDasharray: "3 3" }} />
+                    <Scatter
+                      name="Temperature-Economic Correlation"
+                      data={combinedData}
+                      fill="hsl(var(--chart-3))"
                     />
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke="hsl(var(--chart-3))"
-                      dot={false}
-                      name="Temperature Trend"
-                    />
-                  </ComposedChart>
+                  </ScatterChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
 
-          {weeklyData.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Weekly Temperature Averages</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={weeklyData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="weekStart"
-                        angle={-45}
-                        textAnchor="end"
-                        height={80}
-                      />
-                      <YAxis
-                        label={{
-                          value: "Average Temperature (°C)",
-                          angle: -90,
-                          position: "insideLeft",
-                        }}
-                      />
-                      <Tooltip />
-                      <Legend />
-                      <Bar
-                        dataKey="avgValue"
-                        fill="hsl(var(--chart-4))"
-                        name="Weekly Average"
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <Card>
+            <CardHeader>
+              <CardTitle>Analysis Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  • Temperature changes show a{" "}
+                  {correlation > 0 ? "positive" : "negative"} correlation with
+                  economic indicators (
+                  {(Math.abs(correlation) * 100).toFixed(1)}% strength)
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  • Analysis based on {combinedData.length} data points from
+                  World Bank climate-economic documents
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  • Correlation strength is{" "}
+                  {Math.abs(correlation) > 0.7
+                    ? "strong"
+                    : Math.abs(correlation) > 0.4
+                      ? "moderate"
+                      : "weak"}
+                  , suggesting{" "}
+                  {Math.abs(correlation) > 0.7
+                    ? "significant"
+                    : Math.abs(correlation) > 0.4
+                      ? "moderate"
+                      : "limited"}{" "}
+                  economic impact from temperature variations
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </>
-      )}
-
-      {!loading && temperatureData.length === 0 && !error && (
-        <Alert>
-          <AlertDescription>
-            No temperature data available for the selected criteria. Try
-            adjusting your filters or selecting a different date range.
-          </AlertDescription>
-        </Alert>
       )}
     </div>
   );
