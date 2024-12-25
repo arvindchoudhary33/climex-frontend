@@ -9,13 +9,15 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Dashboard } from "./pages/Dashboard";
 import { UserManagement } from "./pages/UserManagement";
 import { LoginPage } from "./pages/LoginPage";
-import { Toaster } from "./components/ui/sonner";
+import { Toaster } from "sonner";
+import { useFavicon } from "./hooks/useFavicon";
 
 function App() {
+  useFavicon("CX", "light");
   return (
     <Router>
       <AuthProvider>
-        <Toaster richColors position="top-right" />
+        <Toaster richColors position="bottom-right" />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
 

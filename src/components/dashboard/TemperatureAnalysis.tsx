@@ -31,7 +31,6 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY = 2000;
 
 const TEMPERATURE_TYPES = [
-  { id: "TAVG", name: "Average Temperature" },
   { id: "TMAX", name: "Maximum Temperature" },
   { id: "TMIN", name: "Minimum Temperature" },
 ];
@@ -63,7 +62,7 @@ export function TemperatureAnalysis() {
   >([]);
   const [selectedCity, setSelectedCity] = useState(CITIES[0].id);
   const [selectedType, setSelectedType] = useState(TEMPERATURE_TYPES[0].id);
-  const [selectedRange, setSelectedRange] = useState(TIME_RANGES[1].id);
+  const [selectedRange, setSelectedRange] = useState(TIME_RANGES[2].id);
   const { token } = useAuth();
 
   const fetchWithRetry = async (

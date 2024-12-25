@@ -2,6 +2,7 @@ import React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DocumentAnalysis } from "../components/WorldBankDashboard";
 import { TemperatureAnalysis } from "../components/dashboard/TemperatureAnalysis";
+import { ClimateEconomicImpact } from "../components/dashboard/ClimateEconomicImpact.tsx";
 import { AuthLayout } from "../components/AuthLayout";
 
 export function Dashboard() {
@@ -18,6 +19,10 @@ export function Dashboard() {
               <TabsTrigger value="temperature">
                 Temperature Analysis
               </TabsTrigger>
+
+              <TabsTrigger value="economic">
+                Climate-Economic Impact Analysis Analysis
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="documents">
@@ -26,6 +31,10 @@ export function Dashboard() {
 
             <TabsContent value="temperature">
               <TemperatureAnalysis />
+            </TabsContent>
+
+            <TabsContent value="economic">
+              <ClimateEconomicImpact />
             </TabsContent>
           </Tabs>
         </div>
